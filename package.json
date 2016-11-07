@@ -1,0 +1,11 @@
+{
+  "name": "movestagger",
+  "version": "1.0.0",
+  "description": "Adds geo data to photos given geodata from the Moves app",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Brian Cooper",
+  "license": "ISC"
+}
