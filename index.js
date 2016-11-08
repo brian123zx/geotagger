@@ -23,25 +23,27 @@ function processImageInput(path) {
 		}
 		return images;
 	})
-	.each(function(image) {
-		// process image
-		// get exif data
-		var exifObj = exifUtil.read(image);
-		var timestamp = exifObj.Exif.DateTimeOriginal;
-		if(!timestamp) {
-			console.log(image, 'no timestamp');
-			return;
-		}
-		timestamp = moment(timestamp, 'YYYY:MM:DD HH:mm:ss');
-		// adjust by offset
-		timestamp.add(timeOffset, 's');
-		return getLocationAtTime(timestamp).then(function(location) {
-			console.log(image, timestamp.toString(), location);
-			// write location to file
-			geoTagger(image, location.lat, location.lon);
-		}).catch(function(e) {
-			console.log(image,timestamp.toString(), e);
-		});
+	.each(processImage);
+}
+
+function processImage(image) {
+	// process image
+	// get exif data
+	var exifObj = exifUtil.read(image);
+	var timestamp = exifObj.Exif.DateTimeOriginal;
+	if(!timestamp) {
+		console.log(image, 'no timestamp');
+		return;
+	}
+	timestamp = moment(timestamp, 'YYYY:MM:DD HH:mm:ss');
+	// adjust by offset
+	timestamp.add(timeOffset, 's');
+	return getLocationAtTime(timestamp).then(function(location) {
+		console.log(image, timestamp.toString(), location);
+		// write location to file
+		geoTagger(image, location.lat, location.lon);
+	}).catch(function(e) {
+		console.log(image,timestamp.toString(), e);
 	});
 }
 
