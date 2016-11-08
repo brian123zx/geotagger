@@ -29,7 +29,9 @@ function processImageInput(path) {
 function processImage(image) {
 	// process image
 	// get exif data
-	var exifObj = exifUtil.read(image);
+	try {
+		var exifObj = exifUtil.read(image);
+	} catch(e) { return }
 	var timestamp = exifObj.Exif.DateTimeOriginal;
 	if(!timestamp) {
 		console.log(image, 'no timestamp');
