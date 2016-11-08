@@ -25,11 +25,8 @@ function processImageInput(path) {
 	})
 	.each(function(image) {
 		// process image
-		// console.log(image);
 		// get exif data
 		var exifObj = exifUtil.read(image);
-		// console.log(exifUtil.read(image));
-		// return;
 		var timestamp = exifObj.Exif.DateTimeOriginal;
 		if(!timestamp) {
 			console.log(image, 'no timestamp');
@@ -38,8 +35,6 @@ function processImageInput(path) {
 		timestamp = moment(timestamp, 'YYYY:MM:DD HH:mm:ss');
 		// adjust by offset
 		timestamp.add(timeOffset, 's');
-		// console.log(timestamp.toString());
-		// var location = getLocationAtTime(timestamp);
 		return getLocationAtTime(timestamp).then(function(location) {
 			console.log(image, timestamp.toString(), location);
 			// write location to file
@@ -58,12 +53,10 @@ function getLocationAtTime(time) {
 	return new Promise(function(res, rej) {
 		var filename = `storyline_${time.format('YYYYMMDD')}.json`;
 		var jsonPath = path.join(movesJSONPath, filename)
-		// console.log(jsonPath);
 
 		try {
 			var json = fs.readFileSync(jsonPath);
 			json = JSON.parse(json);
-			// console.log(json.length);
 		} catch(e) {
 			return rej('no file or invalid json');
 		}
@@ -117,61 +110,3 @@ function getLocationAtTime(time) {
 		};
 	});
 }
-
-return;
-
-
-
-
-
-
-
-
-
-// test stuff!
-
-// grab file and turn to geojson
-
-const togeojson = require('togeojson');
-const geolib = require('geolib');
-
-
-var DOMParser = require('xmldom').DOMParser;
-
-var kml = new DOMParser().parseFromString(fs.readFileSync('/Users/brian/Downloads/moves_export/kml_ge/daily/activities/activities_20161105.kml', 'utf8'));
-
-// var kml = fs.readFileSync('/Users/brian/Downloads/moves_export/kml_ge/daily/activities/activities_20161105.kml');
-
-var geojson = togeojson.kml(kml);
-
-var feature = geojson.features[0];
-var coordinates = feature.geometry.coordinates;
-var times = feature.properties.coordTimes;
-// console.log(feature);
-
-const piexif = require('./piexif');
-
-// read file
-var jpg = fs.readFileSync('/Users/brian/Desktop/images/E0790E3D-E809-4E6D-BD82-26F796F7B0AF.JPG', 'base64');
-// console.log(jpg.substring(0, 100));
-var exifObj = piexif.load('data:image/jpeg;base64,' + jpg);
-printExif(exifObj);
-
-// write new exif gps
-var newExif = exifObj;
-newExif.GPS[piexif.GPSIFD.GPSLatitude] = [[1,1],[1,1],[1,1]];
-newExif.GPS[piexif.GPSIFD.GPSLongitude] = [[1,1],[1,1],[1,1]];
-
-jpg = writeExif(newExif, 'data:image/jpeg;base64,' + jpg);
-console.log('--------------');
-printExif(piexif.load(jpg));
-
-// write to file
-fs.writeFileSync('/Users/brian/Desktop/images/E0790E3D-E809-4E6D-BD82-26F796F7B0AF-modified.JPG', jpg.substring(23), {encoding: 'base64'});
-
-function writeExif(exifObj, jpg) {
-	return piexif.insert(piexif.dump(newExif), jpg);
-};
-
-
-
