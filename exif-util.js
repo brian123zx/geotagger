@@ -25,6 +25,38 @@ function read(path) {
 	return readable;
 }
 
+/**
+ * @param  {object}
+ * @return {object}
+ */
+function getLocation(exifObj) {
+	if(!exifObj.GPS) return undefined;
+	var lat, lon, deg, min, sec, ref;
+
+	try {
+		[deg, min, sec] = exifObj.GPS.GPSLatitude;
+		ref = exifObj.GPS.GPSLatitudeRef;
+		deg = deg[0]/deg[1];
+		min = min[0]/min[1];
+		sec = sec[0]/sec[1];
+		lat = `${deg}° ${min}' ${sec}" ${ref}`;
+
+		[deg, min, sec] = exifObj.GPS.GPSLongitude;
+		ref = exifObj.GPS.GPSLongitudeRef;
+		deg = deg[0]/deg[1];
+		min = min[0]/min[1];
+		sec = sec[0]/sec[1];
+		lon = `${deg}° ${min}' ${sec}" ${ref}`;
+	} catch(e) {
+		return undefined;
+	}
+
+	return {
+		lat,
+		lon
+	};
+}
+
 
 
 /**
@@ -44,5 +76,6 @@ function print(exifObj) {
 
 module.exports = {
 	print,
-	read
+	read,
+	getLocation
 };

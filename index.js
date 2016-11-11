@@ -5,9 +5,12 @@ const exifUtil = require('./exif-util');
 const moment = require('moment');
 const path = require('path');
 const geoTagger = require('./geo-tagger');
+const geolib = require('geolib');
 
 var movesJSONPath = argv.geodata;
 var timeOffset = parseInt(argv.offset || 0);
+var mode = argv.mode || 'write';
+var overwrite = argv.overwrite || false;
 
 console.log('geodata:', movesJSONPath);
 console.log('offset:', timeOffset);
@@ -23,7 +26,17 @@ function processImageInput(path) {
 		}
 		return images;
 	})
-	.each(processImage);
+	.map(processImage)
+	.filter(function(l) {
+		return !!l;
+	})
+	.then(function(offsets) {
+		var avg = offsets.reduce(function(a, b) {
+			return a + b;
+		}, 0)/offsets.length;
+		console.log('Average location offset:', avg);
+		// console.log(JSON.stringify(locations, undefined, 2));
+	});
 }
 
 function processImage(image) {
@@ -40,10 +53,21 @@ function processImage(image) {
 	timestamp = moment(timestamp, 'YYYY:MM:DD HH:mm:ss');
 	// adjust by offset
 	timestamp.add(timeOffset, 's');
+
+	var originalLocation;
+	originalLocation = exifUtil.getLocation(exifObj);
+	// return originalLocation;
+
 	return getLocationAtTime(timestamp).then(function(location) {
-		console.log(image, timestamp.toString(), location);
-		// write location to file
-		geoTagger(image, location.lat, location.lon);
+		var locationDiff;
+		console.log(image, timestamp.toString(), `${location.lat},${location.lon}`, locationDiff = originalLocation ? geolib.getDistance(originalLocation, location, 1, 2) : '');
+
+		if(mode === 'write' && (overwrite || !originalLocation)) {
+			// write location to file
+			console.log('writing');
+			geoTagger(image, location.lat, location.lon);
+		}
+		return locationDiff;
 	}).catch(function(e) {
 		console.log(image,timestamp.toString(), e);
 	});
@@ -95,8 +119,10 @@ function getLocationAtTime(time) {
 		}
 
 		// possible to be inside a place, but not inside an activity
-		if(!activity || !activity.trackPoints || !activity.trackPoints.length)
+		if(!activity || !activity.trackPoints || !activity.trackPoints.length) {
+			if(!segment.place) throw 'no place data';
 			return segment.place.location;
+		}
 
 		// find closest track point to time
 		var point;
