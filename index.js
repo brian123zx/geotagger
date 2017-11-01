@@ -84,9 +84,13 @@ function getLocationAtTime(time) {
 
 		try {
 			var json = fs.readFileSync(jsonPath);
+		} catch(e) {
+			return rej(`Cannot read file: ${jsonPath}`);
+		}
+		try {
 			json = JSON.parse(json);
 		} catch(e) {
-			return rej('no file or invalid json');
+			return rej(`Cannot parse json: ${jsonPath}`);
 		}
 
 		var storyline = json[0];
