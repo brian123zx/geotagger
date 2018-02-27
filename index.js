@@ -6,71 +6,187 @@ const moment = require('moment');
 const path = require('path');
 const geoTagger = require('./geo-tagger');
 const geolib = require('geolib');
+const { parseLatLon } = require('./utils');
+const { exiftool, init, close } = require('./exiftool');
 
 var movesJSONPath = argv.geodata;
 var timeOffset = parseInt(argv.offset || 0);
+var timezoneOffset = parseInt(argv.offsetTimezone || 0);
 var mode = argv.mode || 'write';
 var overwrite = argv.overwrite || false;
 
 console.log('geodata:', movesJSONPath);
 console.log('offset:', timeOffset);
-argv._.forEach(processImageInput);
+
+// const timeoutPromise = (str, t=500) => new Promise((resolve) => {
+// 	setTimeout(() => {
+// 		console.log(str);
+// 		resolve();
+// 	}, t);
+// });
+
+// Promise.resolve()
+// 	.then(() => timeoutPromise('promise 1'))
+// 	.then(() => timeoutPromise('promise 2!!'))
+// 	.then(() => timeoutPromise('promise 3!!!'))
+// console.log('outside');
+init()
+	// .then(() => {
+	// 	exiftool.readMetadata('')
+	// })
+
+	.then(() => {
+		const promises = argv._.map(processImageInput);
+		// console.log(promises);
+		const p = Promise.all(promises);
+		// console.log(p);
+		return p;
+	})
+
+	// .then(() => new Promise((res, rej) => argv._
+	// 	.forEach(processImageInput)
+	// 	.then(res)
+	// 	.catch(rej))
+	// )
+	.catch(console.error)
+	.then(() => console.log('closing now!'))
+	.then(() => close())
+	.then(() => console.log('ALL DONE!!!'));
+// argv._.forEach(processImageInput);
 
 function processImageInput(path) {
-	fs.statAsync(path).then(function(stats) {
-		var images;
-		if(stats.isDirectory()) {
-			images = fs.walkSync(path);
-		} else {
-			images = [path];
-		}
-		return images;
-	})
-	.map(processImage)
-	.filter(function(l) {
-		return !!l;
-	})
-	.then(function(offsets) {
-		var avg = offsets.reduce(function(a, b) {
-			return a + b;
-		}, 0)/offsets.length;
-		console.log('Average location offset:', avg);
-		// console.log(JSON.stringify(locations, undefined, 2));
+	return new Promise((res, rej) => {
+		fs.statAsync(path).then(function(stats) {
+			var images;
+			if(stats.isDirectory()) {
+				images = fs.walkSync(path);
+			} else {
+				images = [path];
+			}
+			return images;
+		})
+		// .map((img) => {
+		// 	console.log(img);
+		// 	const exiftool = require('node-exiftool');
+		// 	const exiftoolbin = require('dist-exiftool');
+		// 	const ep = new exiftool.ExiftoolProcess(exiftoolbin);
+		// 	return ep
+		// 		.open()
+		// 		.then((pid) => console.log('Started exiftool process %s', pid))
+		// 		.then(() => ep.readMetadata(img))
+		// 		.then((data) => {
+		// 			console.log(data);
+		// 			return ep.writeMetadata(img, {
+		// 				GPSLatitude: `33 deg 50' 56.66" S`,
+		// 				GPSLongitude: `151 deg 12' 38.10" E`,
+		// 				GPSLatitudeRef: `South`,
+		// 				GPSLongitudeRef: `East`,
+		// 			}, ['overwrite_original']);
+		// 		})
+		// 		.catch(console.error)
+		// 		.then(() => ep.close())
+		// 		.catch(console.error)
+		// 		.then(() => img);
+		// })
+		.map(processImage)
+		.filter(function(l) {
+			return !!l;
+		})
+		.then(function(offsets) {
+			var avg = offsets.reduce(function(a, b) {
+				return a + b;
+			}, 0)/offsets.length;
+			console.log('Average location offset:', avg);
+			// console.log(JSON.stringify(locations, undefined, 2));
+		})
+		.then(res)
+		.catch((e) => {
+			console.error(e)
+			rej(e);
+		});
 	});
 }
 
 function processImage(image) {
 	// process image
 	// get exif data
-	try {
-		var exifObj = exifUtil.read(image);
-	} catch(e) { return }
-	var timestamp = exifObj.Exif.DateTimeOriginal;
-	if(!timestamp) {
-		console.log(image, 'no timestamp');
-		return;
-	}
-	timestamp = moment(timestamp, 'YYYY:MM:DD HH:mm:ss');
-	// adjust by offset
-	timestamp.add(timeOffset, 's');
+	// try {
+	// 	var exifObj = exifUtil.read(image);
+	// 	var exifObj = exiftool.readMetadata(image)
+	// } catch(e) { return }
 
-	var originalLocation;
-	originalLocation = exifUtil.getLocation(exifObj);
 	// return originalLocation;
+	let timestamp;
+	let originalLocation;
+	let exifData;
+	let locationDiff;
+	let writeObj;
+	return Promise.resolve()
+		.then(() => {
+			console.log(image);
+			const m = exiftool.readMetadata(image);
+			// console.log(m);
+			return m;
+		})
+		// .catch((e) => console.error('oh no', e))
+		.then(({data:[data]}) => {
+			// console.log(data);
+			exifData = data;
+			if(mode === 'read')
+				console.log(exifData);
+			timestamp = data.DateTimeOriginal;
+			const timezone = data.OffsetTime;
+			if(!timestamp) {
+				console.error(image, 'no timestamp');
+				throw new Error('no timestamp');
+			}
+			timestamp = moment(`${timestamp} ${timezone}`, 'YYYY:MM:DD HH:mm:ss Z');
+			// adjust by offset
+			timestamp.add(timeOffset, 's');
+			console.log(timestamp.format('YYYY:MM:DD HH:mm:ss Z'), timezone);
+			// throw new Error('exiting early');
+			originalLocation = data.GPSLatitude;
+			return timestamp
+		})
+		.then((timestamp) => getLocationAtTime(timestamp))
+		.then(function(location) {
+			console.log(image, timestamp.toString(), `${location.lat},${location.lon}`, locationDiff = originalLocation ? geolib.getDistance(originalLocation, location, 1, 2) : '');
 
-	return getLocationAtTime(timestamp).then(function(location) {
-		var locationDiff;
-		console.log(image, timestamp.toString(), `${location.lat},${location.lon}`, locationDiff = originalLocation ? geolib.getDistance(originalLocation, location, 1, 2) : '');
-
-		if(mode === 'write' && (overwrite || !originalLocation)) {
-			// write location to file
-			console.log('writing');
-			geoTagger(image, location.lat, location.lon);
-		}
-		return locationDiff;
-	}).catch(function(e) {
-		console.log(image,timestamp.toString(), e);
-	});
+			if(mode === 'write' && (overwrite || !originalLocation)) {
+				// write location to file
+				console.log('writing');
+				writeObj = parseLatLon(location.lat, location.lon);
+				if(timezoneOffset) {
+					try {
+						let offsetTime = exifData.OffsetTime;
+						// console.log(offsetTime);
+						offsetTime = parseInt(offsetTime);
+						// console.log(offsetTime);
+						offsetTime += timezoneOffset;
+						// console.log(offsetTime);
+						offsetTime = `${offsetTime >= 0 ? '+' : ''}${offsetTime}`;
+						timestamp.utcOffset(offsetTime);
+						console.log(timestamp.format('YYYY:MM:DD HH:mm:ss Z'));
+						writeObj.OffsetTime = offsetTime;
+					} catch(e) {}
+				}
+				if(timezoneOffset || timeOffset) {
+					writeObj.DateTimeOriginal = timestamp.format('YYYY:MM:DD HH:mm:ss');
+				}
+				console.log(writeObj);
+				// return Promise.resolve();
+				return Promise.resolve()
+					.then(() => exiftool.writeMetadata(image, writeObj, ['overwrite_original']));
+				// geoTagger(image, location.lat, location.lon);
+			}
+			// return locationDiff;
+		})
+		.then(() => locationDiff)
+		.catch(function(e) {
+			console.error(e);
+			// throw e;
+			// console.log(image,timestamp.toString(), e);
+		});
 }
 
 function getLocationAtTime(time) {
@@ -85,6 +201,7 @@ function getLocationAtTime(time) {
 		try {
 			var json = fs.readFileSync(jsonPath);
 		} catch(e) {
+			console.error(e);
 			return rej(`Cannot read file: ${jsonPath}`);
 		}
 		try {
