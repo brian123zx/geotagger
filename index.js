@@ -1,4 +1,5 @@
-var argv = require('minimist')(process.argv.slice(2));
+var packageJSON = require('./package.json');
+var program = require('commander');
 var Promise = require('bluebird');
 var fs = Promise.promisifyAll(require('fs-extra'));
 const exifUtil = require('./exif-util');
@@ -9,11 +10,24 @@ const geolib = require('geolib');
 const { parseLatLon } = require('./utils');
 const { exiftool, init, close } = require('./exiftool');
 
-var movesJSONPath = argv.geodata;
-var timeOffset = parseInt(argv.offset || 0);
-var timezoneOffset = parseInt(argv.offsetTimezone || 0);
-var mode = argv.mode || 'write';
-var overwrite = argv.overwrite || false;
+const int = (val) => {
+	return parseInt(val || 0);
+};
+
+program
+	.version(packageJSON.version)
+	.option('-g, --geodata [path]', 'Path to geodata directory')
+	.option('-t, --offset [seconds]', 'Time offset in seconds', int)
+	.option('-z, --offsetTimezone [hours]', 'Timezone offset in hours. Changes the timezone the image was recorded in', int)
+	.option('-m, --mode [val]', 'The mode of operation. Defaut: write')
+	.option('-o, --overwrite [bool]', 'Overwrites existing location metadata. Default: false')
+	.parse(process.argv);
+
+var movesJSONPath = program.geodata;
+var timeOffset = program.offset;
+var timezoneOffset = program.offsetTimezone;
+var mode = program.mode || 'write';
+var overwrite = program.overwrite || false;
 
 console.log('geodata:', movesJSONPath);
 console.log('offset:', timeOffset);
@@ -36,7 +50,7 @@ init()
 	// })
 
 	.then(() => {
-		const promises = argv._.map(processImageInput);
+		const promises = program.args.map(processImageInput);
 		// console.log(promises);
 		const p = Promise.all(promises);
 		// console.log(p);

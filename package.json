@@ -10,10 +10,10 @@
   "license": "ISC",
   "dependencies": {
     "bluebird": "^3.4.6",
+    "commander": "^2.14.1",
     "dist-exiftool": "^10.53.0",
     "fs-extra": "^1.0.0",
     "geolib": "^2.0.22",
-    "minimist": "^1.2.0",
     "moment": "^2.15.2",
     "node-exiftool": "^2.3.0"
   }
