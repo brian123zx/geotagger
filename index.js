@@ -102,7 +102,7 @@ function processImageInput(path) {
 		// 		.catch(console.error)
 		// 		.then(() => img);
 		// })
-		.map(processImage)
+		.mapSeries(processImage)
 		.filter(function(l) {
 			return !!l;
 		})
@@ -134,7 +134,7 @@ function processImage(image) {
 	let originalLocation;
 	let exifData;
 	let locationDiff;
-	let writeObj;
+	let writeObj = {};
 	return Promise.resolve()
 		.then(() => {
 			console.log(image);
@@ -147,53 +147,76 @@ function processImage(image) {
 			// console.log(data);
 			exifData = data;
 			if(mode === 'read')
-				console.log(exifData);
+				console.log(JSON.stringify(exifData));
 			timestamp = data.DateTimeOriginal;
-			const timezone = data.OffsetTime;
+			const timezone = data.OffsetTimeOriginal;
 			if(!timestamp) {
 				console.error(image, 'no timestamp');
 				throw new Error('no timestamp');
 			}
+			console.log(`Read timestamp: ${timestamp}`);
 			timestamp = moment(`${timestamp} ${timezone}`, 'YYYY:MM:DD HH:mm:ss Z');
 			// adjust by offset
+			console.log(`Read timezone: ${timezone}`);
+			console.log(`Read timestamp (local): ${timestamp.format('YYYY:MM:DD HH:mm:ss Z')}`);
+
 			timestamp.add(timeOffset, 's');
-			console.log(timestamp.format('YYYY:MM:DD HH:mm:ss Z'), timezone);
+
+			console.log(`Check timestamp (local): ${timestamp.format('YYYY:MM:DD HH:mm:ss Z')}`);
 			// throw new Error('exiting early');
-			originalLocation = data.GPSLatitude;
+			if(data.GPSLatitude)
+				originalLocation = {
+					lat: data.GPSLatitude.replace(' deg', '°'),
+					lon: data.GPSLongitude.replace(' deg', '°'),
+				};
 			return timestamp
 		})
 		.then((timestamp) => getLocationAtTime(timestamp))
 		.then(function(location) {
+			console.log(originalLocation, location);
 			console.log(image, timestamp.toString(), `${location.lat},${location.lon}`, locationDiff = originalLocation ? geolib.getDistance(originalLocation, location, 1, 2) : '');
 
+			writeObj = parseLatLon(location.lat, location.lon);
+		})
+		.catch(() =>{
+			console.log('Failed to get location information');
+		})
+		.then(() => {
+			if(timezoneOffset) {
+				try {
+					let offsetTime = exifData.OffsetTime;
+					// console.log(offsetTime);
+					offsetTime = parseInt(offsetTime);
+					// console.log(offsetTime);
+					offsetTime += timezoneOffset;
+					// console.log(offsetTime);
+					offsetTime = `${offsetTime >= 0 ? '+' : ''}${offsetTime}`;
+					timestamp.utcOffset(offsetTime);
+					console.log(timestamp.format('YYYY:MM:DD HH:mm:ss Z'));
+					writeObj.OffsetTimeOriginal = `${offsetTime}:00`;
+					writeObj.OffsetTimeDigitized = `${offsetTime}:00`;
+				} catch(e) {}
+			}
+			if(timezoneOffset || timeOffset) {
+				writeObj.DateTimeOriginal = timestamp.format('YYYY:MM:DD HH:mm:ss');
+			}
+			console.log(JSON.stringify(writeObj, undefined, 2));
+			// return Promise.resolve();
+
+
+
+			// return locationDiff;
+		})
+		.then(() => {
+			if(!Object.keys(writeObj).length) return;
+
+			// write location to file
 			if(mode === 'write' && (overwrite || !originalLocation)) {
-				// write location to file
 				console.log('writing');
-				writeObj = parseLatLon(location.lat, location.lon);
-				if(timezoneOffset) {
-					try {
-						let offsetTime = exifData.OffsetTime;
-						// console.log(offsetTime);
-						offsetTime = parseInt(offsetTime);
-						// console.log(offsetTime);
-						offsetTime += timezoneOffset;
-						// console.log(offsetTime);
-						offsetTime = `${offsetTime >= 0 ? '+' : ''}${offsetTime}`;
-						timestamp.utcOffset(offsetTime);
-						console.log(timestamp.format('YYYY:MM:DD HH:mm:ss Z'));
-						writeObj.OffsetTime = offsetTime;
-					} catch(e) {}
-				}
-				if(timezoneOffset || timeOffset) {
-					writeObj.DateTimeOriginal = timestamp.format('YYYY:MM:DD HH:mm:ss');
-				}
-				console.log(writeObj);
-				// return Promise.resolve();
 				return Promise.resolve()
 					.then(() => exiftool.writeMetadata(image, writeObj, ['overwrite_original']));
 				// geoTagger(image, location.lat, location.lon);
 			}
-			// return locationDiff;
 		})
 		.then(() => locationDiff)
 		.catch(function(e) {

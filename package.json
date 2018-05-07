@@ -4,6 +4,7 @@
   "description": "Adds geo data to photos given geodata from the Moves app",
   "main": "index.js",
   "scripts": {
+    "process": "node ./index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Brian Cooper",
