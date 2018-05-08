@@ -9,6 +9,7 @@ const geoTagger = require('./geo-tagger');
 const geolib = require('geolib');
 const { parseLatLon } = require('./utils');
 const { exiftool, init, close } = require('./exiftool');
+const { getStoryline } = require('./getStoryline');
 
 const int = (val) => {
 	return parseInt(val || 0);
@@ -23,7 +24,7 @@ program
 	.option('-o, --overwrite [bool]', 'Overwrites existing location metadata. Default: false')
 	.parse(process.argv);
 
-var movesJSONPath = program.geodata;
+var movesJSONPath = program.geodata || path.resolve('./', 'storylines');
 var timeOffset = program.offset;
 var timezoneOffset = program.offsetTimezone;
 var mode = program.mode || 'write';
@@ -216,6 +217,8 @@ function processImage(image) {
 				return Promise.resolve()
 					.then(() => exiftool.writeMetadata(image, writeObj, ['overwrite_original']));
 				// geoTagger(image, location.lat, location.lon);
+			} else {
+				console.warn('skipping');
 			}
 		})
 		.then(() => locationDiff)
@@ -231,25 +234,10 @@ function getLocationAtTime(time) {
 	// expect file to be in format "storyline_YYYYMMDD.json"
 
 	// find segment for time
-	return new Promise(function(res, rej) {
-		var filename = `storyline_${time.format('YYYYMMDD')}.json`;
-		var jsonPath = path.join(movesJSONPath, filename)
-
-		try {
-			var json = fs.readFileSync(jsonPath);
-		} catch(e) {
-			console.error(e);
-			return rej(`Cannot read file: ${jsonPath}`);
-		}
-		try {
-			json = JSON.parse(json);
-		} catch(e) {
-			return rej(`Cannot parse json: ${jsonPath}`);
-		}
-
+	return getStoryline(movesJSONPath, time).then((json) => {
 		var storyline = json[0];
 		var segments = storyline.segments;
-		res(segments);
+		return segments;
 	}).then(function(segments) {
 		// find segment with time
 		for(var s of segments) {
@@ -275,7 +263,6 @@ function getLocationAtTime(time) {
 				break;
 			}
 		}
-
 		// possible to be inside a place, but not inside an activity
 		if(!activity || !activity.trackPoints || !activity.trackPoints.length) {
 			if(!segment.place) throw 'no place data';
