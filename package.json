@@ -4,20 +4,34 @@
   "description": "Adds geo data to photos given geodata from the Moves app",
   "main": "index.js",
   "scripts": {
-    "process": "node ./index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "process": "node --require @babel/register ./index.js",
+    "test": "mocha --recursive --require @babel/register",
+    "start": "node --require @babel/register ./start.js"
   },
   "author": "Brian Cooper",
   "license": "ISC",
   "dependencies": {
+    "@babel/polyfill": "^7.0.0",
     "bluebird": "^3.4.6",
     "commander": "^2.14.1",
     "dist-exiftool": "^10.53.0",
     "fs-extra": "^1.0.0",
     "geolib": "^2.0.22",
+    "lodash": "^4.17.11",
     "mkdirp": "^0.5.1",
     "moment": "^2.15.2",
     "node-exiftool": "^2.3.0",
-    "request-promise-native": "^1.0.5"
+    "parse-gpx": "^1.2.0",
+    "request-promise-native": "^1.0.5",
+    "xml2js": "^0.4.19"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.0.0",
+    "@babel/core": "^7.0.1",
+    "@babel/preset-env": "^7.0.0",
+    "@babel/register": "^7.0.0",
+    "chai": "^4.1.2",
+    "chai-as-promised": "^7.1.1",
+    "mocha": "^5.2.0"
   }
 }

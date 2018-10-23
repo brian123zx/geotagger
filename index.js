@@ -1,5 +1,4 @@
-var packageJSON = require('./package.json');
-var program = require('commander');
+var program = require('./program');
 var Promise = require('bluebird');
 var fs = Promise.promisifyAll(require('fs-extra'));
 const exifUtil = require('./exif-util');
@@ -10,25 +9,16 @@ const geolib = require('geolib');
 const { parseLatLon } = require('./utils');
 const { exiftool, init, close } = require('./exiftool');
 const { getStoryline } = require('./getStoryline');
+const { getLocationAtTime } = require('./lib/geodataParser/moves');
 
-const int = (val) => {
-	return parseInt(val || 0);
-};
-
-program
-	.version(packageJSON.version)
-	.option('-g, --geodata [path]', 'Path to geodata directory')
-	.option('-t, --offset [seconds]', 'Time offset in seconds', int)
-	.option('-z, --offsetTimezone [hours]', 'Timezone offset in hours. Changes the timezone the image was recorded in', int)
-	.option('-m, --mode [val]', 'The mode of operation. Defaut: write')
-	.option('-o, --overwrite [bool]', 'Overwrites existing location metadata. Default: false')
-	.parse(process.argv);
-
-var movesJSONPath = program.geodata || path.resolve('./', 'storylines');
-var timeOffset = program.offset;
-var timezoneOffset = program.offsetTimezone;
-var mode = program.mode || 'write';
-var overwrite = program.overwrite || false;
+var {
+	movesJSONPath,
+	timeOffset,
+	timezoneOffset,
+	mode,
+	overwrite,
+	args,
+} = program;
 
 console.log('geodata:', movesJSONPath);
 console.log('offset:', timeOffset);
@@ -51,7 +41,7 @@ init()
 	// })
 
 	.then(() => {
-		const promises = program.args.map(processImageInput);
+		const promises = program.args.map((path) => processImageInput(path));
 		// console.log(promises);
 		const p = Promise.all(promises);
 		// console.log(p);
@@ -71,6 +61,7 @@ init()
 
 function processImageInput(path) {
 	return new Promise((res, rej) => {
+		// get array of image paths
 		fs.statAsync(path).then(function(stats) {
 			var images;
 			if(stats.isDirectory()) {
@@ -229,59 +220,4 @@ function processImage(image) {
 		});
 }
 
-function getLocationAtTime(time) {
-	// get file name
-	// expect file to be in format "storyline_YYYYMMDD.json"
 
-	// find segment for time
-	return getStoryline(movesJSONPath, time).then((json) => {
-		var storyline = json[0];
-		var segments = storyline.segments;
-		return segments;
-	}).then(function(segments) {
-		// find segment with time
-		for(var s of segments) {
-			if(time.isBetween(s.startTime, s.endTime))
-				return s;
-		}
-	}).then(function(segment) {
-		if(!segment) throw 'no valid segment';
-
-		if(!segment.place && !segment.activities)
-			throw 'no location data in segment';
-
-		// explore activities for the segment
-		if(!segment.activities) {
-			// return segments place data
-			return segment.place.location;
-		}
-
-		var activity;
-		for(var a of segment.activities) {
-			if(time.isBetween(a.startTime, a.endTime)) {
-				activity = a;
-				break;
-			}
-		}
-		// possible to be inside a place, but not inside an activity
-		if(!activity || !activity.trackPoints || !activity.trackPoints.length) {
-			if(!segment.place) throw 'no place data';
-			return segment.place.location;
-		}
-
-		// find closest track point to time
-		var point;
-		var pointDiff;
-		for(var p of activity.trackPoints) {
-			var d = Math.abs(time.diff(p.time));
-			if(pointDiff === undefined || d < pointDiff) {
-				pointDiff = d;
-				point = p;
-			}
-		}
-		return {
-			lat: point.lat,
-			lon: point.lon
-		};
-	});
-}
