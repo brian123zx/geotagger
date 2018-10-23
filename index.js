@@ -1,4 +1,3 @@
-var program = require('./program');
 var Promise = require('bluebird');
 var fs = Promise.promisifyAll(require('fs-extra'));
 const exifUtil = require('./exif-util');
@@ -9,7 +8,9 @@ const geolib = require('geolib');
 const { parseLatLon } = require('./utils');
 const { exiftool, init, close } = require('./exiftool');
 const { getStoryline } = require('./getStoryline');
-const { getLocationAtTime } = require('./lib/geodataParser/moves');
+const { getLocationAtTime } = require('./lib/geodataParser/arc');
+const config = require('./config').default;
+console.log(config);
 
 var {
 	movesJSONPath,
@@ -18,46 +19,23 @@ var {
 	mode,
 	overwrite,
 	args,
-} = program;
+} = config;
 
 console.log('geodata:', movesJSONPath);
 console.log('offset:', timeOffset);
 
-// const timeoutPromise = (str, t=500) => new Promise((resolve) => {
-// 	setTimeout(() => {
-// 		console.log(str);
-// 		resolve();
-// 	}, t);
-// });
-
-// Promise.resolve()
-// 	.then(() => timeoutPromise('promise 1'))
-// 	.then(() => timeoutPromise('promise 2!!'))
-// 	.then(() => timeoutPromise('promise 3!!!'))
-// console.log('outside');
 init()
-	// .then(() => {
-	// 	exiftool.readMetadata('')
-	// })
 
 	.then(() => {
-		const promises = program.args.map((path) => processImageInput(path));
-		// console.log(promises);
+		const promises = config.args.map((path) => processImageInput(path));
 		const p = Promise.all(promises);
-		// console.log(p);
 		return p;
 	})
 
-	// .then(() => new Promise((res, rej) => argv._
-	// 	.forEach(processImageInput)
-	// 	.then(res)
-	// 	.catch(rej))
-	// )
 	.catch(console.error)
 	.then(() => console.log('closing now!'))
 	.then(() => close())
 	.then(() => console.log('ALL DONE!!!'));
-// argv._.forEach(processImageInput);
 
 function processImageInput(path) {
 	return new Promise((res, rej) => {
@@ -170,8 +148,8 @@ function processImage(image) {
 
 			writeObj = parseLatLon(location.lat, location.lon);
 		})
-		.catch(() =>{
-			console.log('Failed to get location information');
+		.catch((e) =>{
+			console.log('Failed to get location information', e);
 		})
 		.then(() => {
 			if(timezoneOffset) {
